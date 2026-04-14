@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { Clock, Calendar, Eye, Tag } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -15,6 +14,7 @@ interface KnowledgeCardProps {
   next_review_at: string | null;
   created_at: string;
   preview?: string;
+  onClick?: () => void;
 }
 
 export function KnowledgeCard({
@@ -26,12 +26,13 @@ export function KnowledgeCard({
   last_reviewed_at,
   next_review_at,
   created_at,
-  preview
+  preview,
+  onClick
 }: KnowledgeCardProps) {
   const isDue = next_review_at && new Date(next_review_at) <= new Date();
 
   return (
-    <Link href={`/knowledge/${id}`} className="block group">
+    <div onClick={onClick} className="block group cursor-pointer">
       <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-lg hover:border-blue-300 transition-all duration-200">
         <div className="flex items-start justify-between gap-3 mb-3">
           <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
@@ -95,6 +96,6 @@ export function KnowledgeCard({
           </span>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }

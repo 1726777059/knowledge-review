@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { KnowledgeCard } from '@/components/KnowledgeCard';
 import { StrategySelector, StatsCard } from '@/components/ReviewComponents';
 import { EmptyState } from '@/components/MarkdownRenderer';
-import { Search, Sparkles } from 'lucide-react';
+import { Search, Sparkles, BookOpen } from 'lucide-react';
 import type { KnowledgePointWithProgress, ReviewStrategy } from '@/lib/types';
 import { getAllKnowledgePoints, getStatistics } from '@/lib/api';
+import Fuse from 'fuse.js';
+import Link from 'next/link';
 
 export default function HomePage() {
   const [knowledgePoints, setKnowledgePoints] = useState<KnowledgePointWithProgress[]>([]);
@@ -34,15 +36,28 @@ export default function HomePage() {
     }
   }
 
-  const filteredPoints = knowledgePoints.filter(point => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      point.title.toLowerCase().includes(query) ||
-      point.content.toLowerCase().includes(query) ||
-      point.tags.some(tag => tag.toLowerCase().includes(query))
-    );
-  });
+  // 创建 Fuse 实例用于模糊搜索
+  const fuse = useMemo(() => {
+    return new Fuse(knowledgePoints, {
+      keys: [
+        { name: 'title', weight: 0.5 },
+        { name: 'tags', weight: 0.3 },
+        { name: 'content', weight: 0.2 }
+      ],
+      threshold: 0.4, // 模糊度，值越小越精确
+      includeScore: true,
+      minMatchCharLength: 2, // 最少输入2个字符开始匹配
+    });
+  }, [knowledgePoints]);
+
+  // 模糊搜索结果
+  const filteredPoints = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return knowledgePoints;
+    }
+    const results = fuse.search(searchQuery);
+    return results.map(result => result.item);
+  }, [searchQuery, fuse, knowledgePoints]);
 
   const sortedPoints = [...filteredPoints].sort((a, b) => {
     switch (strategy) {
@@ -104,11 +119,21 @@ export default function HomePage() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
         <input
           type="text"
-          placeholder="搜索知识点..."
+          placeholder="输入关键词快速搜索..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
+      </div>
+
+      <div className="flex justify-end mb-4">
+        <Link
+          href="/browse"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <BookOpen size={18} />
+          <span>卡片浏览模式</span>
+        </Link>
       </div>
 
       {sortedPoints.length === 0 ? (
