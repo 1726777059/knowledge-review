@@ -164,7 +164,7 @@ export async function getAllTags(): Promise<string[]> {
 
   const tagSet = new Set<string>();
   data?.forEach(point => {
-    (point.tags || []).forEach(tag => tagSet.add(tag));
+    (point.tags || []).forEach((tag: string) => tagSet.add(tag));
   });
   
   return Array.from(tagSet).sort();
