@@ -70,7 +70,7 @@ export default function ImportPage() {
 
 ![图片描述](图片路径.png)
 
-\`\`\`标签1\`\`\` \`标签2``}
+\`\`\`标签1\`\`\` \`标签2\``}
             className="w-full h-80 font-mono text-sm border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
         </div>
@@ -146,7 +146,7 @@ function parseMarkdownToSql(markdown: string): string {
       continue;
     }
 
-    const tripleBacktickRegex = /`{3}([^`]+)`{3}/g;
+    const tripleBacktickRegex = /`{3}([^`]+?)`{3}/g;
     const tagMatches = line.match(tripleBacktickRegex);
     if (tagMatches) {
       tagMatches.forEach(match => {
