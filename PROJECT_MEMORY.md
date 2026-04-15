@@ -229,5 +229,42 @@ SET tags = array_append(tags, '资料:2026上半年100条')
 
 ---
 
+## Git 推送配置
+
+**重要**：推送时使用 SSH URL，避免 HTTPS 端口 443 连接问题。
+
+**SSH 远程地址**：`git@github.com:1726777059/knowledge-review.git`
+
+**推送命令**：
+```bash
+git push git@github.com:1726777059/knowledge-review.git main
+```
+
+---
+
+## 部署配置
+
+**问题**：启用 `output: 'export'` 静态导出后，动态页面 `/knowledge/[id]` 无法在构建时预生成（环境变量不可用），导致 404。
+
+**解决方案**：
+1. 移除 `output: 'export'` 配置
+2. 使用 Next.js 默认的 SSR 模式
+3. GitHub Actions 构建时会注入 `secrets`，动态路由正常工作
+
+**当前配置** (`next.config.ts`)：
+```ts
+const nextConfig: NextConfig = {
+  images: {
+    unoptimized: true,
+  },
+  basePath: '/knowledge-review',
+  // 不使用 output: 'export'
+};
+```
+
+**部署状态**：GitHub Pages (https://1726777059.github.io/knowledge-review/)
+
+---
+
 **最后更新**：2026-04-15
 **维护人**：系统架构师知识库项目组

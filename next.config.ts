@@ -5,7 +5,6 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   basePath: '/knowledge-review',
-  output: 'export',
 };
 
 export default nextConfig;
