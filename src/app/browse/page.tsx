@@ -20,16 +20,21 @@ export default function BrowsePage() {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  async function loadData() {
+  async function loadData(silent = false) {
     try {
+      if (!silent) setLoading(true);
       const data = await getAllKnowledgePoints();
       setKnowledgePoints(data);
     } catch (error) {
       console.error('加载失败:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 

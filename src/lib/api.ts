@@ -1,7 +1,33 @@
 import { supabase, DEFAULT_USER_ID } from './supabase';
 import type { KnowledgePoint, UserProgress, KnowledgePointWithProgress, ReviewStrategy } from './types';
 
+// 多层缓存系统
+interface CacheStore {
+  allPoints: KnowledgePointWithProgress[] | null;
+  allPointsTime: number;
+  pointById: Map<string, KnowledgePointWithProgress>;
+  tags: string[] | null;
+  tagsTime: number;
+}
+
+const cache: CacheStore = {
+  allPoints: null,
+  allPointsTime: 0,
+  pointById: new Map(),
+  tags: null,
+  tagsTime: 0,
+};
+
+const CACHE_TTL = 30000; // 30秒缓存
+const POINT_CACHE_TTL = 60000; // 单条记录缓存60秒
+const TAGS_CACHE_TTL = 120000; // 标签缓存120秒
+
 export async function getAllKnowledgePoints(): Promise<KnowledgePointWithProgress[]> {
+  // 检查缓存
+  if (cache.allPoints && Date.now() - cache.allPointsTime < CACHE_TTL) {
+    return cache.allPoints;
+  }
+
   const { data: points, error } = await supabase
     .from('knowledge_points')
     .select('*')
@@ -14,13 +40,57 @@ export async function getAllKnowledgePoints(): Promise<KnowledgePointWithProgres
     .select('*')
     .eq('user_id', DEFAULT_USER_ID);
 
-  return (points || []).map(point => ({
-    ...point,
-    user_progress: progress?.find(p => p.knowledge_id === point.id) || null
-  }));
+  const result = (points || []).map(point => {
+    const withProgress = {
+      ...point,
+      user_progress: progress?.find(p => p.knowledge_id === point.id) || null
+    };
+    // 同时缓存单条记录
+    cache.pointById.set(point.id, withProgress);
+    return withProgress;
+  });
+
+  // 缓存标签列表
+  const tagSet = new Set<string>();
+  result.forEach(point => {
+    (point.tags || []).forEach((tag: string) => tagSet.add(tag));
+  });
+  cache.tags = Array.from(tagSet).sort();
+  cache.tagsTime = Date.now();
+
+  // 更新缓存
+  cache.allPoints = result;
+  cache.allPointsTime = Date.now();
+
+  return result;
+}
+
+// 清除缓存（数据更新后调用）
+export function clearCache() {
+  cache.allPoints = null;
+  cache.allPointsTime = 0;
+  cache.pointById.clear();
+  cache.tags = null;
+}
+
+// 可选：手动预热缓存
+export async function warmupCache(): Promise<void> {
+  await getAllKnowledgePoints();
 }
 
 export async function getKnowledgePoint(id: string): Promise<KnowledgePointWithProgress | null> {
+  // 检查单条缓存
+  const cached = cache.pointById.get(id);
+  if (cached && Date.now() - cache.allPointsTime < POINT_CACHE_TTL) {
+    return cached;
+  }
+
+  // 检查全量缓存
+  if (cache.allPoints && Date.now() - cache.allPointsTime < CACHE_TTL) {
+    return cache.allPoints.find(p => p.id === id) || null;
+  }
+
+  // 缓存未命中，从数据库查询
   const { data: point, error } = await supabase
     .from('knowledge_points')
     .select('*')
@@ -36,7 +106,12 @@ export async function getKnowledgePoint(id: string): Promise<KnowledgePointWithP
     .eq('user_id', DEFAULT_USER_ID)
     .single();
 
-  return { ...point, user_progress: progress || null };
+  const result = { ...point, user_progress: progress || null };
+  
+  // 缓存结果
+  cache.pointById.set(id, result);
+  
+  return result;
 }
 
 export async function updateKnowledgePoint(
@@ -73,6 +148,7 @@ export async function upsertProgress(
       .select()
       .single();
     if (error) throw error;
+    clearCache(); // 清除缓存
     return data;
   } else {
     const { data, error } = await supabase
@@ -86,6 +162,7 @@ export async function upsertProgress(
       .select()
       .single();
     if (error) throw error;
+    clearCache(); // 清除缓存
     return data;
   }
 }
@@ -158,6 +235,12 @@ export async function recordReview(knowledgeId: string, masteryLevel: number): P
 }
 
 export async function getAllTags(): Promise<string[]> {
+  // 使用缓存的标签列表（随全量数据一起缓存）
+  if (cache.tags && Date.now() - cache.tagsTime < TAGS_CACHE_TTL) {
+    return cache.tags;
+  }
+  
+  // 缓存未命中，从数据库获取
   const { data } = await supabase
     .from('knowledge_points')
     .select('tags');
@@ -167,7 +250,10 @@ export async function getAllTags(): Promise<string[]> {
     (point.tags || []).forEach((tag: string) => tagSet.add(tag));
   });
   
-  return Array.from(tagSet).sort();
+  cache.tags = Array.from(tagSet).sort();
+  cache.tagsTime = Date.now();
+  
+  return cache.tags;
 }
 
 export async function getStatistics(): Promise<{
@@ -188,4 +274,122 @@ export async function getStatistics(): Promise<{
   }).length;
 
   return { total: all.length, mastered, learning, notStarted, dueReview };
+}
+
+// ==================== 论文闯关进度 API ====================
+
+export interface PaperProgress {
+  id: string;
+  user_id: string;
+  level_id: number;
+  status: 'not_started' | 'completed' | 'forgotten';
+  wrong_count: number;
+  last_attempt: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaperStatistics {
+  total: number;
+  completed: number;
+  weakCount: number;
+}
+
+// 论文闯关数据缓存
+interface PaperCacheStore {
+  progress: PaperProgress[] | null;
+  progressTime: number;
+}
+
+const paperCache: PaperCacheStore = {
+  progress: null,
+  progressTime: 0,
+};
+
+const PAPER_CACHE_TTL = 30000; // 30秒缓存
+
+export async function getPaperProgress(): Promise<PaperProgress[]> {
+  if (paperCache.progress && Date.now() - paperCache.progressTime < PAPER_CACHE_TTL) {
+    return paperCache.progress;
+  }
+
+  const { data, error } = await supabase
+    .from('paper_progress')
+    .select('*')
+    .eq('user_id', DEFAULT_USER_ID)
+    .order('level_id', { ascending: true });
+
+  if (error) throw error;
+
+  paperCache.progress = data || [];
+  paperCache.progressTime = Date.now();
+
+  return paperCache.progress;
+}
+
+export async function getPaperStatistics(): Promise<PaperStatistics> {
+  const progress = await getPaperProgress();
+  const completed = progress.filter(p => p.status === 'completed').length;
+  const weakCount = progress.filter(p => p.status === 'forgotten').length;
+
+  return {
+    total: 24,
+    completed,
+    weakCount,
+  };
+}
+
+export async function updatePaperProgress(
+  levelId: number,
+  updates: Partial<Pick<PaperProgress, 'status' | 'wrong_count'>>
+): Promise<PaperProgress> {
+  const existing = await supabase
+    .from('paper_progress')
+    .select('*')
+    .eq('level_id', levelId)
+    .eq('user_id', DEFAULT_USER_ID)
+    .single();
+
+  const now = new Date().toISOString();
+  const isCompleted = updates.status === 'completed';
+
+  if (existing.data) {
+    const { data, error } = await supabase
+      .from('paper_progress')
+      .update({
+        ...updates,
+        last_attempt: now,
+        completed_at: isCompleted ? now : existing.data.completed_at,
+        updated_at: now,
+      })
+      .eq('id', existing.data.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    clearPaperCache();
+    return data;
+  } else {
+    const { data, error } = await supabase
+      .from('paper_progress')
+      .insert({
+        level_id: levelId,
+        user_id: DEFAULT_USER_ID,
+        ...updates,
+        last_attempt: now,
+        completed_at: isCompleted ? now : null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    clearPaperCache();
+    return data;
+  }
+}
+
+export function clearPaperCache() {
+  paperCache.progress = null;
+  paperCache.progressTime = 0;
 }

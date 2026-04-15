@@ -9,6 +9,7 @@ import type { KnowledgePointWithProgress, ReviewStrategy } from '@/lib/types';
 import { getAllKnowledgePoints, getStatistics } from '@/lib/api';
 import Fuse from 'fuse.js';
 import Link from 'next/link';
+import { PaperGateCard } from '@/components/PaperGateCard';
 
 export default function HomePage() {
   const [knowledgePoints, setKnowledgePoints] = useState<KnowledgePointWithProgress[]>([]);
@@ -19,10 +20,16 @@ export default function HomePage() {
 
   useEffect(() => {
     loadData();
+    // 首次加载后每30秒自动刷新一次，保持缓存新鲜
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  async function loadData() {
+  async function loadData(silent = false) {
     try {
+      if (!silent) setLoading(true);
       const [points, statistics] = await Promise.all([
         getAllKnowledgePoints(),
         getStatistics()
@@ -32,7 +39,7 @@ export default function HomePage() {
     } catch (error) {
       console.error('加载失败:', error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -106,6 +113,10 @@ export default function HomePage() {
           <p className="text-gray-500 text-sm mt-1">共 {stats.total} 个知识点</p>
         </div>
         <StrategySelector current={strategy} onChange={setStrategy} />
+      </div>
+
+      <div className="mb-6">
+        <PaperGateCard />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

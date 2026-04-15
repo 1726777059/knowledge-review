@@ -1,235 +1,233 @@
-# Knowledge Review - 项目记忆
+# 知识库导入项目记录
 
-> 自动生成时间：2026-04-14
-> 关联会话：GitHub Pages 静态部署调试
+## 项目概况
 
----
-
-## 📋 项目概述
-
-**项目名称**：Knowledge Review（知识库复习系统）
-**项目类型**：Next.js 16 + TypeScript + Supabase
-**部署目标**：GitHub Pages（静态导出）
-**访问地址**：https://1726777059.github.io/knowledge-review/
+- **目标**：构建系统架构设计师知识库，包含100条核心知识点 + 24篇论文资料
+- **数据库**：Supabase PostgreSQL
+- **主表**：`knowledge_points`（知识点表）
 
 ---
 
-## 🎯 核心功能
+## 数据来源与导入状态
 
-- 知识点列表展示（支持标签筛选）
-- 知识点详情页（Markdown 渲染）
-- 掌握程度滑块（记录复习进度）
-- 重要性星级评分
-- 知识点编辑功能
-- Supabase 数据库持久化
+### 1. 100条核心知识点
 
----
-
-## 🛠️ 技术栈
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Next.js | 16.2.3 | React 框架（App Router） |
-| React | 19.2.4 | UI 库 |
-| TypeScript | 5.x | 类型安全 |
-| Tailwind CSS | 4.x | 样式系统 |
-| Supabase | ^2.103.0 | 后端服务（数据库 + API） |
-| React Markdown | 10.1.0 | Markdown 渲染 |
-| Turbopack | 内置 | 开发/构建优化 |
+| 项目 | 详情 |
+|------|------|
+| **来源** | 2026年上半年系统架构设计师重要知识点100条（学员版） |
+| **脚本** | `import_100_knowledge_points.sql` |
+| **状态** | ✅ 已完成导入（2026-04-13） |
+| **记录数** | 100条 |
+| **标题范围** | `1、信息系统的分类` ~ `100、知识产权分类` |
+| **标签** | `资料:2026上半年100条` + 章节分类标签 |
+| **重要警告** | ❗ **严禁重新执行**此脚本，会重复插入100条记录 |
 
 ---
 
-## 📦 项目结构
+### 2. 24篇论文知识点
 
-```
-knowledge-review/
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx          # 根布局
-│   │   ├── page.tsx            # 首页（知识点列表）
-│   │   └── knowledge/
-│   │       └── [id]/
-│   │           ├── page.tsx              # Server 组件
-│   │           └── KnowledgeDetailClient.tsx  # Client 组件
-│   ├── components/
-│   │   ├── MarkdownRenderer.tsx # Markdown 渲染器
-│   │   ├── RatingComponents.tsx # 评分组件（滑块/星级）
-│   │   └── SearchAndFilter.tsx  # 搜索过滤组件
-│   └── lib/
-│       ├── api.ts              # Supabase API 函数
-│       ├── supabase.ts         # Supabase 客户端初始化
-│       └── types.ts            # TypeScript 类型定义
-├── .github/
-│   └── workflows/
-│       └── deploy.yml          # GitHub Actions 部署配置
-├── next.config.ts              # Next.js 配置
-├── supabase/
-│   └── import_100_knowledge_points.sql  # 数据导入脚本
-└── package.json
+| 项目 | 详情 |
+|------|------|
+| **来源** | `01_架构师_论文` 目录下的24篇论文 |
+| **脚本** | `import_papers.sql` |
+| **状态** | ⏳ 待导入 |
+| **记录数** | 195条（24篇论文拆分为多个知识点） |
+| **标签** | `资料:论文24篇` + 论文编号 + 章节标签 |
+| **安全机制** | ✅ 使用 `WHERE NOT EXISTS` 防重复插入，可重复执行 |
+
+---
+
+## 标签规范
+
+### 资料类型标签（互斥）
+
+| 标签名 | 说明 | 对应数据 |
+|--------|------|----------|
+| `资料:2026上半年100条` | 100条核心知识点 | 100条 |
+| `资料:论文24篇` | 24篇论文资料 | 195条 |
+
+**注意**：这两个标签区分不同批次的数据源，不可混用。
+
+---
+
+## 关键操作流程
+
+### 步骤1：为100条旧数据添加标签
+
+**脚本**：`update_100_knowledge_points_tags.sql`
+
+**作用**：给已导入的100条记录添加新标签 `资料:2026上半年100条`
+
+**原理**：
+```sql
+UPDATE knowledge_points
+SET tags = array_append(tags, '资料:2026上半年100条')
+WHERE title = '1、信息系统的分类'
+  AND NOT tags @> ARRAY['资料:2026上半年100条'];
 ```
 
----
-
-## 🔗 外部服务
-
-### Supabase 配置
-- **项目 URL**：https://bcstbausmqbtkudwkcjp.supabase.co
-- **环境变量**：
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
-### GitHub 仓库
-- **仓库地址**：https://github.com/1726777059/knowledge-review
-- **分支**：main
-- **Secrets**：已配置 Supabase 环境变量
+**特点**：
+- ✅ 通过 `title` 精确匹配已存在的记录
+- ✅ `WHERE NOT tags @> ...` 防止重复添加标签
+- ✅ **不影响** `user_progress` 等已编辑字段
+- ✅ 可重复执行（幂等性）
 
 ---
 
-## 🚀 部署配置
+### 步骤2：导入195条论文数据
 
-### GitHub Pages + 静态导出
+**脚本**：`import_papers.sql`
 
-**模式**：`output: 'export'`（生成静态 HTML）
-**优势**：
-- 免费托管（GitHub Pages）
-- 无需服务器成本
-- 全球 CDN 加速
+**安全机制**：
+```sql
+INSERT INTO knowledge_points (title, content, tags, images, source_file)
+SELECT '论文:01_xxx', 'content', ARRAY[...], '[]', 'file'
+WHERE NOT EXISTS (
+  SELECT 1 FROM knowledge_points WHERE title = '论文:01_xxx'
+);
+```
 
-**限制**：
-- 必须预生成所有页面
-- 动态路由需实现 `generateStaticParams()`
-- Client 组件无法在 build 阶段访问环境变量
+**特点**：
+- ✅ 通过 `title` 去重，防止重复插入
+- ✅ 可重复执行（幂等性）
+- ✅ 标签已修正为 `资料:论文24篇`
 
 ---
 
-## 🐛 问题记录与解决方案
+## 生成脚本说明
 
-### 问题 1：动态路由缺少 `generateStaticParams()`
+### `extract_paper_knowledge.py`
 
-**错误信息**：
-```
-Error: Page "/knowledge/[id]" is missing "generateStaticParams()"
-so it cannot be used with "output: export" config.
-```
-
-**原因**：Next.js 静态导出模式下，动态路由需要预先知道所有可能的 URL。
-
-**解决方案**：
-在 `src/app/knowledge/[id]/page.tsx` 添加：
-- `generateStaticParams()` 函数（Server Component）
-- `export const dynamicParams = false`
+- **路径**：`scripts/extract_paper_knowledge.py`
+- **功能**：从 `01_架构师_论文` 目录提取论文知识点，生成 `import_papers.sql`
+- **标签配置**：`tags = [f"论文:{paper_num}_{paper_title}", f"结构:{section['type']}", "资料:论文24篇"]`
 
 ---
 
-### 问题 2：`'use client'` 组件不能使用 `generateStaticParams()`
+## 重要注意事项
 
-**错误信息**：
-```
-Error: Page "/knowledge/[id]" is missing "generateStaticParams()"
-```
+### 严禁操作
 
-**原因**：`'use client'` 组件不能导出 `generateStaticParams()`（仅在 Server Component 中有效）。
+1. ❌ **不要重新执行** `import_100_knowledge_points.sql`
+   - 会插入100条重复记录
+   - 会导致 `title` 冲突（如果加了唯一约束）或数据冗余
+   - 你已编辑的 `user_progress` 数据将无法关联到新记录
 
-**解决方案**：
-分离组件架构：
-- **Server Component**：`page.tsx` → 导出 `generateStaticParams()` 和默认 `<KnowledgeDetailClient />`
-- **Client Component**：`KnowledgeDetailClient.tsx` → 处理所有交互逻辑
+2. ❌ **不要删除后重新导入** 100条数据
+   - 会丢失所有已编辑的掌握程度数据
 
----
+### 推荐操作顺序
 
-### 问题 3：构建时报错 `supabaseUrl is required`
-
-**错误信息**：
-```
-Error: supabaseUrl is required.
-    at .next/server/chunks/ssr/src_app_knowledge_[id]_059mz_e._.js
-```
-
-**原因**：
-- `generateStaticParams()` 在构建时（build time）运行
-- 需要访问 `NEXT_PUBLIC_SUPABASE_URL` 环境变量
-- GitHub Actions 默认不向 build 步骤注入 Secrets
-
-**解决方案**：
-
-1. **`page.tsx` 添加环境检查**：
-```typescript
-export async function generateStaticParams() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    console.warn('Supabase URL 未配置，跳过静态生成');
-    return [];
-  }
-  // ...
-}
-```
-
-2. **`.github/workflows/deploy.yml` 注入环境变量**：
-```yaml
-- name: Build
-  run: |
-    NEXT_PUBLIC_SUPABASE_URL="${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
-    npm run build
-```
-
----
-
-## 📝 重要文件变更记录
-
-| 文件 | 变更 | 提交哈希 |
-|------|------|----------|
-| `next.config.ts` | 添加 `output: 'export'` 和 `trailingSlash: true` | 42becba |
-| `src/app/knowledge/[id]/page.tsx` | 分离 Server/Client 组件，添加 `generateStaticParams()` | a8b9fbf → bcc60cd |
-| `src/app/knowledge/[id]/KnowledgeDetailClient.tsx` | 新建 Client 组件（原页面逻辑） | a8b9fbf |
-| `.github/workflows/deploy.yml` | build 步骤注入环境变量 | bcc60cd |
-
----
-
-## 🔐 环境变量清单
-
-### 本地开发（`.env.local`）
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://bcstbausmqbtkudwkcjp.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_adMDxgqReOKYwRHlp9BHpQ_N5ggmYGQ
+# 1. 为旧数据添加标签（只执行一次）
+# Supabase SQL Editor 中执行：
+\i update_100_knowledge_points_tags.sql
+
+# 2. 导入新论文数据（可重复执行，直到全部导入）
+\i import_papers.sql
 ```
 
-### GitHub Actions Secrets
-| Secret 名称 | 值 | 状态 |
-|-------------|-----|------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://bcstbausmqbtkudwkcjp.supabase.co` | ✅ 已配置 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_adMDxgqReOKYwRHlp9BHpQ_N5ggmYGQ` | ✅ 已配置 |
+---
+
+## 数据验证
+
+### 验证100条旧数据标签
+
+```sql
+-- 检查有多少条有 '资料:2026上半年100条' 标签
+SELECT COUNT(*) as count
+FROM knowledge_points
+WHERE tags @> ARRAY['资料:2026上半年100条'];
+
+-- 预期结果：100
+```
+
+### 验证195条论文数据
+
+```sql
+-- 检查论文标签
+SELECT COUNT(*) as count
+FROM knowledge_points
+WHERE tags @> ARRAY['资料:论文24篇'];
+
+-- 预期结果：195
+```
+
+### 检查是否有重复标题
+
+```sql
+-- 检查重复的 title（应该为0）
+SELECT title, COUNT(*) as cnt
+FROM knowledge_points
+GROUP BY title
+HAVING COUNT(*) > 1;
+```
 
 ---
 
-## ✅ 最终成果
+## 文件名对照表
 
-- ✅ 静态导出配置完成
-- ✅ 动态路由问题解决
-- ✅ Server/Client 组件分离
-- ✅ 构建环境变量注入
-- ✅ GitHub Pages 成功部署
-
-**访问地址**：https://1726777059.github.io/knowledge-review/
-
----
-
-## 📚 相关文档
-
-- [Next.js 静态导出文档](https://nextjs.org/docs/pages/building-your-application/deploying/static-exports)
-- [generateStaticParams API](https://nextjs.org/docs/app/api-reference/functions/generate-static-params)
-- [Server vs Client Components](https://nextjs.org/docs/app/building-your-application/rendering/server-and-client-components)
+| 文件名 | 类型 | 用途 | 是否可重复执行 |
+|--------|------|------|----------------|
+| `import_100_knowledge_points.sql` | INSERT | 原始100条导入（首次使用） | ❌ 否（会重复插入） |
+| `update_100_knowledge_points_tags.sql` | UPDATE | 为100条旧数据加标签 | ✅ 是（幂等） |
+| `import_papers.sql` | INSERT | 导入195条论文数据 | ✅ 是（防重复） |
+| `extract_paper_knowledge.py` | Python脚本 | 生成 `import_papers.sql` | - |
 
 ---
 
-## 🔄 后续优化建议
+## 技术细节
 
-1. **增量静态再生（ISR）**：如果需要频繁更新数据，考虑迁移到 Vercel 并使用 `revalidate` 参数
-2. **缓存策略**：为 API 请求添加缓存以减少 Supabase 查询
-3. **离线支持**：添加 Service Worker 实现 PWA
-4. **错误边界**：为动态路由添加 404 页面和错误处理
+### 数组去重判断
+
+```sql
+-- 判断 tags 是否包含某个标签
+WHERE tags @> ARRAY['资料:2026上半年100条']
+
+-- 含义：tags 数组包含（包含于）这个数组中的所有元素
+```
+
+### 数组追加
+
+```sql
+-- 追加标签（如果不存在）
+SET tags = array_append(tags, '资料:2026上半年100条')
+```
+
+### 幂等性保证
+
+通过 `WHERE NOT tags @> ...` 条件，确保：
+- 第一次执行：标签不存在 → 执行 `UPDATE` → 添加标签
+- 第二次执行：标签已存在 → `WHERE` 条件不满足 → 跳过（影响行数 = 0）
 
 ---
 
-> **最后更新**：2026-04-14
-> **版本**：v0.1.0
-> **状态**：✅ 已部署成功
+## 生成时间
+
+- **100条标签更新脚本**：2026-04-15
+- **论文导入脚本**：2026-04-15（标签已修正）
+
+---
+
+## 问题记录
+
+### 问题1：标签不一致
+
+- **现象**：`import_papers.sql` 中标签为 `资料:论文笔记`，应为 `资料:论文24篇`
+- **解决**：修改 `extract_paper_knowledge.py` 第173行，重新生成脚本
+- **状态**：✅ 已修复
+
+---
+
+## 下一步计划
+
+- [ ] 执行 `update_100_knowledge_points_tags.sql`
+- [ ] 执行 `import_papers.sql` 导入论文数据
+- [ ] 验证数据完整性（总数 = 295，100 + 195）
+- [ ] 验证标签正确性（`资料:2026上半年100条` 100条，`资料:论文24篇` 195条）
+- [ ] 检查无重复记录
+
+---
+
+**最后更新**：2026-04-15
+**维护人**：系统架构师知识库项目组

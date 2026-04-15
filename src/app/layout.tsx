@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
-
-const inter = Inter({ subsets: ["latin"] });
+import { CacheProvider } from "@/components/CacheProvider";
 
 export const metadata: Metadata = {
   title: "知识复习系统",
@@ -17,7 +15,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="h-full">
-      <body className={`${inter.className} min-h-full flex flex-col bg-gray-50`}>
+      <body className="min-h-full flex flex-col bg-gray-50">
+        <CacheProvider />
         <Header />
         <main className="flex-1">
           {children}

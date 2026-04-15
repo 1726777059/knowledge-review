@@ -20,20 +20,27 @@ export default function ReviewPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadQueue();
-    loadStats();
+    // 首次加载后每30秒自动刷新一次
+    const interval = setInterval(() => {
+      loadQueue(true);
+      loadStats(true);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [strategy]);
 
-  async function loadQueue() {
+  async function loadQueue(silent = false) {
     try {
+      if (!silent) setLoading(true);
       const data = await getReviewQueue(strategy);
       setPoints(data);
     } catch (error) {
       console.error('加载失败:', error);
+    } finally {
+      if (!silent) setLoading(false);
     }
   }
 
-  async function loadStats() {
+  async function loadStats(silent = false) {
     try {
       const data = await getStatistics();
       setStats(data);
